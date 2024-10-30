@@ -35,9 +35,9 @@ def flow_warp(x, flo, mul=True):
                         dim=1)
 
     vgrid = vgrid.permute(0, 2, 3, 1)
-    output = F.grid_sample(x, vgrid, padding_mode='border')
+    output = F.grid_sample(x, vgrid, padding_mode='border', align_corners=True)
     mask = torch.ones(x.size(), device=x.device)
-    mask = F.grid_sample(mask, vgrid, padding_mode='zeros')
+    mask = F.grid_sample(mask, vgrid, padding_mode='zeros', align_corners=True)
 
     mask[mask < 0.9999] = 0
     mask[mask > 0] = 1
@@ -205,7 +205,7 @@ def _prob2cornerflow(prob, normalize=True):
     avg_pool = nn.AvgPool2d(kernel_size=2, stride=1, padding=0)
     max_pool = nn.MaxPool2d(kernel_size=d - 1, stride=1, return_indices=True)
     out, indice = max_pool(avg_pool(pr))
-    indice += indice / (d - 1)  # in original coordinate
+    indice += indice // (d - 1)  # in original coordinate
     indice = indice.squeeze().reshape(B, H, W).unsqueeze(1)
     lt_prob = torch.gather(prob, 1, indice)
     lt_flow = indice2flow(indice, d).float()
