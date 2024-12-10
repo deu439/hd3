@@ -1,0 +1,13 @@
+python -u inference.py \
+  --task=flow \
+  --data_root=/home/deu/Datasets/MPI_Sintel/ \
+  --data_list=lists/MPISintel_train_validsplit.txt \
+  --context \
+  --encoder=dlaup \
+  --decoder=hda \
+  --batch_size=1 \
+  --workers=16 \
+  --flow_format=flo \
+  --evaluate \
+  --model_path=/home/deu/Models/hd3/hd3fc_chairs_things_kitti-bfa97911.pth \
+  --save_folder=predictions/MPI_Sintel

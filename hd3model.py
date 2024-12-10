@@ -27,6 +27,7 @@ class HD3Model(nn.Module):
                 get_prob=False,
                 get_loss=False,
                 get_epe=False,
+                get_auc=False,
                 get_vis=False):
         result = {}
 
@@ -42,6 +43,10 @@ class HD3Model(nn.Module):
             scale_factor = 1 / 2**(self.ds - len(ms_vect) + 1)
             result['epe'] = self.eval_epe(ms_vect[-1] * scale_factor,
                                           label_list[0])
+        if get_auc:
+            scale_factor = 1 / 2**(self.ds - len(ms_vect) + 1)
+            result['auc'] = evaluate_auc(ms_prob[-1].data, ms_vect[-1]*scale_factor, label_list[0])
+
         if get_vis:
             result['vis'] = get_visualization(img_list, label_list, ms_vect,
                                               ms_prob, self.ds)

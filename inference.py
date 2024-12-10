@@ -142,6 +142,7 @@ def main():
     data_time = AverageMeter()
     batch_time = AverageMeter()
     avg_epe = AverageMeter()
+    avg_auc = AverageMeter()
 
     model.eval()
     end = time.time()
@@ -165,7 +166,10 @@ def main():
                 img_list=resized_img_list,
                 label_list=label_list,
                 get_vect=True,
-                get_epe=args.evaluate)
+                get_epe=args.evaluate,
+                get_auc=args.evaluate,
+                get_vis=True
+            )
             scale_factor = 1 / 2**(7 - len(corr_range))
             output['vect'] = resize_dense_vector(output['vect'] * scale_factor,
                                                  img_size[0, 1],
@@ -173,6 +177,7 @@ def main():
 
             if args.evaluate:
                 avg_epe.update(output['epe'].mean().data, img_list[0].size(0))
+                avg_auc.update(output['auc'].mean().data, img_list[0].size(0))
 
             batch_time.update(time.time() - end)
             end = time.time()
@@ -204,11 +209,12 @@ def main():
 
                 # save visualzation (disparity transformed to flow here)
                 vis_fn = join(vis_sub_folder, names[curr_idx] + '.png')
-                if args.task == 'flow':
-                    vis_flo = fl.flow_to_image(curr_vect)
-                else:
-                    vis_flo = fl.flow_to_image(fl.disp2flow(curr_vect))
-                vis_flo = cv2.cvtColor(vis_flo, cv2.COLOR_RGB2BGR)
+                #if args.task == 'flow':
+                #    vis_flo = fl.flow_to_image(curr_vect)
+                #else:
+                #    vis_flo = fl.flow_to_image(fl.disp2flow(curr_vect))
+                #vis_flo = cv2.cvtColor(vis_flo, cv2.COLOR_RGB2BGR)
+                vis_flo = cv2.cvtColor(output['vis'][0].cpu().numpy().transpose(1, 2, 0), cv2.COLOR_RGB2BGR)*255.0
                 cv2.imwrite(vis_fn, vis_flo)
 
                 # save point estimates
@@ -235,6 +241,8 @@ def main():
     if args.evaluate:
         logger.info('Average End Point Error {avg_epe.avg:.2f}'.format(
             avg_epe=avg_epe))
+        logger.info('Area under curve {avg_auc.avg:.2f}'.format(
+            avg_auc=avg_auc))
 
     logger.info('<<<<<<<<<<<<<<<<< End Test <<<<<<<<<<<<<<<<<')
 

@@ -49,11 +49,11 @@ def get_visualization(img_list, label_list, ms_vect, ms_prob, ds=6, idx=0):
             vis_list.append(
                 _visualize_heat(prob[idx].squeeze(), cv2.COLORMAP_BONE))
 
-            vis = torch.cat(vis_list, dim=2)
+            vis = torch.cat(vis_list, dim=2)    # Stack image, flow, epe, and uncertainty map horizontally
             if l == 0:
                 ms_vis = vis
             else:
-                ms_vis = torch.cat([ms_vis, vis], dim=1)
+                ms_vis = torch.cat([ms_vis, vis], dim=1)    # Stack levels vertically
 
         return ms_vis.unsqueeze(0)
 
