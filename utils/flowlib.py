@@ -431,12 +431,17 @@ def read_png_file(flow_file):
 
 
 def read_kitti_png_file(flow_file):
-    flow_img = cv2.imread(flow_file, -1)
-    flow_img = flow_img.astype(np.float32)
-    flow_data = np.zeros(flow_img.shape, dtype=np.float32)
-    flow_data[:, :, 0] = (flow_img[:, :, 2] - 2**15) / 64.0
-    flow_data[:, :, 1] = (flow_img[:, :, 1] - 2**15) / 64.0
-    flow_data[:, :, 2] = flow_img[:, :, 0]
+    flow_occ = cv2.imread(flow_file, -1)
+    flow_occ = flow_occ.astype(np.float32)
+    flow_file = flow_file.replace('flow_occ', 'flow_noc')
+    flow_noc = cv2.imread(flow_file, -1)
+    flow_noc = flow_noc.astype(np.float32)
+
+    flow_data = np.zeros(flow_occ.shape[0:2] + (4, ), dtype=np.float32)
+    flow_data[:, :, 0] = (flow_occ[:, :, 2] - 2**15) / 64.0
+    flow_data[:, :, 1] = (flow_occ[:, :, 1] - 2**15) / 64.0
+    flow_data[:, :, 2] = flow_occ[:, :, 0]  # Valid mask
+    flow_data[:, :, 3] = flow_noc[:, :, 0]  # Not occluded mask
     return flow_data
 
 

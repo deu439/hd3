@@ -51,44 +51,53 @@ def EndPointError(output, gt):
     if output.size(1) == 1:  # stereo
         output = disp2flow(output)
     output = resize_dense_vector(output, gt.size(2), gt.size(3))
-    error = torch.norm(output - gt[:, :2, :, :], 2, 1, keepdim=False)
-    if gt.size(1) == 3:
-        mask = (gt[:, 2, :, :] > 0).float()
+    error = torch.norm(output - gt[:, :2, :, :], 2, 1, keepdim=False) # [B, H, W]
+    magnitude = torch.norm(gt[:, :2, :, :], 2, 1, keepdim=False)    # [B, H, W]
+
+    if gt.size(1) == 4: # KITTI data with occ/noc masks
+        mask_occ = (gt[:, 2, :, :] > 0).float() # [B, H, W]
+        mask_noc = (gt[:, 3, :, :] > 0).float() # [B, H, W]
+        epe_occ = (error * mask_occ).sum() / mask_occ.sum()
+        epe_noc = (error * mask_noc).sum() / mask_noc.sum()
+        cond1 = error > 3.0
+        cond2 = (error / torch.max(magnitude, torch.tensor(1e-10, device=magnitude.device))) > 0.05
+        bad_pixels = (cond1 & cond2).float()
+        error_rate = 100 * (bad_pixels * mask_occ).sum() / mask_occ.sum()
+
+        return epe_occ.reshape(1), epe_noc.reshape(1), error_rate.reshape(1)
     else:
-        mask = torch.ones_like(error)
-    epe = (error * mask).sum() / mask.sum()
-    return epe.reshape(1)
+        return error.mean()
 
 
-def sp_plot(error, entropy, n=25, alpha=100.0, eps=1e-1):
-    def sp_mask(thr, entropy):
+def sp_plot(error, entropy, gt_mask, n=25, alpha=100.0, eps=1e-1):
+    def sp_mask(thr, entropy, gt_mask):
         mask = ss.expit(alpha * (thr[:, None, None] - entropy[None, :, :]))
-        frac = np.mean(1.0 - mask, axis=(1, 2))
-        return mask, frac
+        frac = np.sum((1.0 - mask)*gt_mask[None], axis=(1, 2)) / np.sum(gt_mask)[None]
+        return mask*gt_mask[None], frac
 
     # Find the primary interval for soft thresholding
     greatest = np.max(entropy) + eps    # Avoid zero-sized interval
     least = np.min(entropy) - eps
-    _, frac = sp_mask(np.array([least]), entropy)
+    _, frac = sp_mask(np.array([least]), entropy, gt_mask)
     while abs(frac.item() - 1.0) > eps:
         least -= 1e-3*(greatest - least)
-        _, frac = sp_mask(np.array([least]), entropy)
+        _, frac = sp_mask(np.array([least]), entropy, gt_mask)
 
-    _, frac = sp_mask(np.array([greatest]), entropy)
+    _, frac = sp_mask(np.array([greatest]), entropy, gt_mask)
     while abs(frac.item() - 0.0) > eps:
         greatest += 1e-3*(greatest - least)
-        _, frac = sp_mask(np.array([greatest]), entropy)
+        _, frac = sp_mask(np.array([greatest]), entropy, gt_mask)
 
     # Approximate uniform grid
     grid_entr = np.linspace(greatest, least, n)
     grid_frac = np.linspace(0, 1, n)
-    mask, frac = sp_mask(grid_entr, entropy)
+    mask, frac = sp_mask(grid_entr, entropy, gt_mask)
     for i in range(10):
         #print("res: ", np.max(np.abs(frac - grid_frac)))
         if np.max(np.abs(frac - grid_frac)) <= eps:
             break
         grid_entr = np.interp(grid_frac, frac, grid_entr)
-        mask, frac = sp_mask(grid_entr, entropy)
+        mask, frac = sp_mask(grid_entr, entropy, gt_mask)
 
     # Check whether the grid is approximately uniform
     if np.max(np.abs(frac - grid_frac)) > eps:
@@ -104,16 +113,20 @@ def sp_plot(error, entropy, n=25, alpha=100.0, eps=1e-1):
     return splot
 
 
-def evaluate_uncertainty(gt_flows, pred_flows, pred_entropies, sp_samples=25):
+def evaluate_uncertainty(gt_flows, pred_flows, pred_entropies, sp_samples=100):
     auc, oracle_auc = 0, 0
     splots, oracle_splots = [], []
     batch_size = len(gt_flows)
     for gt_flow, pred_flow, pred_entropy, i in zip(gt_flows, pred_flows, pred_entropies, range(batch_size)):
         # Calculate sparsification plots
         epe_map = np.sqrt(np.sum(np.square(pred_flow[:, :, :2] - gt_flow[:, :, :2]), axis=2))
+        if gt_flow.shape[2] == 4:    # KITTY dataset includes a mask in the third dimension
+            mask = (gt_flow[:, :, 2] > 0).astype(np.float32)
+        else:
+            mask = np.ones_like(epe_map)
         entropy_map = np.sum(pred_entropy[:, :, :2], axis=2)
-        splot = sp_plot(epe_map, entropy_map)
-        oracle_splot = sp_plot(epe_map, epe_map)     # Oracle
+        splot = sp_plot(epe_map, entropy_map, mask, n=sp_samples)
+        oracle_splot = sp_plot(epe_map, epe_map, mask, n=sp_samples)     # Oracle
 
         # Collect the sparsification plots and oracle sparsification plots
         splots += [splot]
@@ -142,4 +155,4 @@ def evaluate_auc(prob, vec, gt):
     vec = vec.cpu().numpy().transpose(0, 2, 3, 1)
     prob = prob.cpu().numpy().transpose(0, 2, 3, 1)
     (auc, rel_auc), _, _ = evaluate_uncertainty(gt, vec, 1-prob)
-    return torch.tensor([auc], device=device)
+    return torch.tensor([auc], device=device), torch.tensor([rel_auc], device=device)

@@ -37,15 +37,22 @@ class HD3Model(nn.Module):
         if get_prob:
             result['prob'] = ms_prob[-1]
         if get_loss:
-            result['loss'] = self.criterion(ms_prob, ms_vect, label_list[0],
-                                            self.corr_range, self.ds)
+            result['loss'] = self.criterion(ms_prob, ms_vect, label_list[0], self.corr_range, self.ds)
         if get_epe:
             scale_factor = 1 / 2**(self.ds - len(ms_vect) + 1)
-            result['epe'] = self.eval_epe(ms_vect[-1] * scale_factor,
-                                          label_list[0])
+            res = self.eval_epe(ms_vect[-1] * scale_factor, label_list[0])
+            if isinstance(res, tuple): # KITTI dataset - evaluate epe-all, epe-noc, error rate [%]
+                result['epe'] = res[0]
+                result['epe_noc'] = res[1]
+                result['er'] = res[2]
+            else:
+                result['epe'] = res
+
         if get_auc:
             scale_factor = 1 / 2**(self.ds - len(ms_vect) + 1)
-            result['auc'] = evaluate_auc(ms_prob[-1].data, ms_vect[-1]*scale_factor, label_list[0])
+            auc, rel_auc = evaluate_auc(ms_prob[-1].data, ms_vect[-1]*scale_factor, label_list[0])
+            result['auc'] = auc
+            result['rel_auc'] = rel_auc
 
         if get_vis:
             result['vis'] = get_visualization(img_list, label_list, ms_vect,

@@ -142,7 +142,10 @@ def main():
     data_time = AverageMeter()
     batch_time = AverageMeter()
     avg_epe = AverageMeter()
+    avg_epe_noc = AverageMeter()
+    avg_er = AverageMeter()
     avg_auc = AverageMeter()
+    avg_rel_auc = AverageMeter()
 
     model.eval()
     end = time.time()
@@ -178,6 +181,11 @@ def main():
             if args.evaluate:
                 avg_epe.update(output['epe'].mean().data, img_list[0].size(0))
                 avg_auc.update(output['auc'].mean().data, img_list[0].size(0))
+                avg_rel_auc.update(output['rel_auc'].mean().data, img_list[0].size(0))
+                if 'epe_noc' in output:
+                    avg_epe_noc.update(output['epe_noc'].mean().data, img_list[0].size(0))
+                if 'er' in output:
+                    avg_er.update(output['er'].mean().data, img_list[0].size(0))
 
             batch_time.update(time.time() - end)
             end = time.time()
@@ -239,10 +247,11 @@ def main():
                                 np.uint16(-curr_vect[:, :, 0] * 256.0))
 
     if args.evaluate:
-        logger.info('Average End Point Error {avg_epe.avg:.2f}'.format(
-            avg_epe=avg_epe))
-        logger.info('Area under curve {avg_auc.avg:.2f}'.format(
-            avg_auc=avg_auc))
+        logger.info('EPE {avg_epe.avg:.2f}'.format(avg_epe=avg_epe))
+        logger.info('EPE (noc) {avg_epe_noc.avg:.2f}'.format(avg_epe_noc=avg_epe_noc))
+        logger.info('ER {avg_er.avg:.2f} %'.format(avg_er=avg_er))
+        logger.info('AUS {avg_auc.avg:.2f}'.format(avg_auc=avg_auc))
+        logger.info('AUS_rel {avg_auc_rel.avg:.2f}'.format(avg_auc_rel=avg_rel_auc))
 
     logger.info('<<<<<<<<<<<<<<<<< End Test <<<<<<<<<<<<<<<<<')
 
